@@ -51,37 +51,45 @@ const axios_1 = __importDefault(require("axios"));
 const parquet = __importStar(require("parquetjs-lite"));
 const s3Client = new client_s3_1.S3Client({});
 const handler = () => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const bucketName = process.env.BUCKET_NAME;
     const apiKey = process.env.API_KEY;
     const majorCities = [
-        "Kolkata", "London", "New York", "Tokyo", "Paris", "Berlin",
+        "Mumbai", "London", "New York", "Tokyo", "Paris", "Berlin",
         "Sydney", "Toronto", "Dubai", "Singapore"
     ];
     const records = [];
     for (const city of majorCities) {
         try {
-            const res = yield axios_1.default.get('http://api.openweathermap.org/data/2.5/forecast', {
-                params: {
-                    q: city,
-                    appid: apiKey,
-                    units: 'metric'
-                },
-                timeout: 10000
-            });
+            // 3-day forecast using WeatherAPI
+            const weatherUrl = `http://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city}&days=3`;
+            const res = yield axios_1.default.get(weatherUrl, { timeout: 10000 });
             const data = res.data;
-            for (const forecastItem of data.list || []) {
-                records.push({
-                    city: city,
-                    datetime: forecastItem.dt_txt,
-                    temp: forecastItem.main.temp,
-                    weather: forecastItem.weather[0].description,
-                    humidity: forecastItem.main.humidity,
-                    wind_speed: forecastItem.wind.speed
-                });
+            // WeatherAPI returns data in forecast.forecastday
+            if (!data.forecast || !data.forecast.forecastday) {
+                console.warn(`No forecast data for city=${city}`);
+                continue;
+            }
+            for (const dayInfo of data.forecast.forecastday) {
+                // dayInfo.date, dayInfo.hour[] => array of 24 hourly objects
+                if (!dayInfo.hour)
+                    continue;
+                for (const hourData of dayInfo.hour) {
+                    // Example fields from WeatherAPI
+                    const record = {
+                        city: city,
+                        datetime: hourData.time, // e.g. "2025-01-01 00:00"
+                        temp: hourData.temp_c, // Celsius
+                        weather: ((_a = hourData.condition) === null || _a === void 0 ? void 0 : _a.text) || "N/A",
+                        humidity: hourData.humidity,
+                        wind_speed: hourData.wind_kph // in kph
+                    };
+                    records.push(record);
+                }
             }
         }
         catch (error) {
-            console.error(`Error fetching data for ${city}:`, error);
+            console.error(`Error fetching data for city=${city}:`, error);
         }
     }
     if (records.length === 0) {
@@ -96,12 +104,11 @@ const handler = () => __awaiter(void 0, void 0, void 0, function* () {
         humidity: { type: 'INT64' },
         wind_speed: { type: 'DOUBLE' }
     });
-    // Group by city and date
-    // A quick group approach in JS:
+    // Group by city and date (YYYY-MM-DD derived from datetime)
     const grouped = {};
     records.forEach((rec) => {
-        const dateStr = rec.datetime.split(' ')[0]; // "YYYY-MM-DD" from "YYYY-MM-DD HH:mm:ss"
-        const cityDateKey = `${rec.city}#${dateStr}`;
+        const datePart = rec.datetime.split(' ')[0]; // "YYYY-MM-DD" from "YYYY-MM-DD HH:mm"
+        const cityDateKey = `${rec.city}#${datePart}`;
         if (!grouped[cityDateKey]) {
             grouped[cityDateKey] = [];
         }
@@ -110,7 +117,7 @@ const handler = () => __awaiter(void 0, void 0, void 0, function* () {
     for (const cityDateKey in grouped) {
         const [city, date] = cityDateKey.split('#');
         const groupRecords = grouped[cityDateKey];
-        // Create a new Parquet writer
+        // Create a new Parquet writer for each partition
         const fileName = 'forecast.parquet';
         const writer = yield parquet.ParquetWriter.openFile(schema, `/tmp/${fileName}`);
         // Write data
@@ -132,12 +139,12 @@ const handler = () => __awaiter(void 0, void 0, void 0, function* () {
             yield s3Client.send(new client_s3_1.PutObjectCommand({
                 Bucket: bucketName,
                 Key: key,
-                Body: fileData
+                Body: fileData,
             }));
-            console.info(`Uploaded Parquet file for ${city}, ${date} -> s3://${bucketName}/${key}`);
+            console.info(`Uploaded Parquet file for city=${city}, date=${date} -> s3://${bucketName}/${key}`);
         }
         catch (err) {
-            console.error(`Error uploading to S3 for ${city}, ${date}:`, err);
+            console.error(`Error uploading to S3 for ${city}, date=${date}:`, err);
         }
     }
     return { status: 'Data Ingestion Complete' };
