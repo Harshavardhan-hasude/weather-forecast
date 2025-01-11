@@ -44,7 +44,7 @@ export class WeatherStack extends Stack {
             timeout: Duration.seconds(300),
             environment: {
                 BUCKET_NAME: dataBucket.bucketName,
-                API_KEY: 'YOUR_OPENWEATHERMAP_API_KEY' // For demonstration only
+                API_KEY: 'dd318793330d49fea91192456251101' // Free version
             }
         });
 
@@ -56,7 +56,7 @@ export class WeatherStack extends Stack {
 
         // 5. Data API Lambda
         const apiLambda = new lambda.Function(this, 'DataApiLambda', {
-            runtime: lambda.Runtime.NODEJS_16_X,
+            runtime: lambda.Runtime.NODEJS_18_X,
             code: lambda.Code.fromAsset('lambdas/data-api-lambda'),
             handler: 'index.handler',
             role: lambdaRole,
@@ -94,16 +94,17 @@ export class WeatherStack extends Stack {
             requestTemplates: { 'application/json': `{"statusCode": "200"}` }
         });
 
+        // Method-level configuration to require API key
         const getWeatherMethod = weatherResource.addMethod('GET', lambdaIntegration, {
             apiKeyRequired: true
-        });        
+        });
 
         plan.addApiKey(apiKey);
         plan.addApiStage({
             stage: restApi.deploymentStage,
             throttle: [
                 {
-                    method: getWeatherMethod,//restApi.root.resourceForPath('weather').addMethod('GET').node.defaultChild as apigw.CfnMethod,
+                    method: getWeatherMethod,
                     throttle: {
                         rateLimit: 10,
                         burstLimit: 20
