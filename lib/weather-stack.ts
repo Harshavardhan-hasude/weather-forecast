@@ -96,12 +96,7 @@ export class WeatherStack extends Stack {
 
         const getWeatherMethod = weatherResource.addMethod('GET', lambdaIntegration, {
             apiKeyRequired: true
-        });
-
-        // Method-level configuration to require API key
-        weatherResource.addMethod('GET', lambdaIntegration, {
-            apiKeyRequired: true
-        });
+        });        
 
         plan.addApiKey(apiKey);
         plan.addApiStage({
