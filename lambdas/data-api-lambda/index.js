@@ -87,7 +87,6 @@ const handler = (event) => __awaiter(void 0, void 0, void 0, function* () {
             }));
             const stream = getObjectRes.Body;
             // Read parquet from the stream
-            // We need to buffer the Parquet file in memory or use a streaming approach
             const chunks = [];
             try {
                 for (var _d = true, stream_1 = (e_1 = void 0, __asyncValues(stream)), stream_1_1; stream_1_1 = yield stream_1.next(), _a = stream_1_1.done, !_a; _d = true) {
