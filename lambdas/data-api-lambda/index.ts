@@ -67,14 +67,16 @@ export const handler = async (event: any): Promise<any> => {
             console.info(`No data found for city=${city} date=${dateStr}:`, err);
         }
     }
-
+    console.info(`Data returned is`, results);
     return response(200, { data: results });
 };
 
 function response(statusCode: number, body: any) {
     return {
         statusCode,
-        body: JSON.stringify(body),
+        body: JSON.stringify(body, (_, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        ),
         headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
