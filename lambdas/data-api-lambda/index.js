@@ -121,13 +121,16 @@ const handler = (event) => __awaiter(void 0, void 0, void 0, function* () {
             console.info(`No data found for city=${city} date=${dateStr}:`, err);
         }
     }
+    console.info(`Data returned is`, results);
     return response(200, { data: results });
 });
 exports.handler = handler;
 function response(statusCode, body) {
     return {
         statusCode,
-        body: JSON.stringify(body),
+        body: JSON.stringify(body, (_, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        ),
         headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
